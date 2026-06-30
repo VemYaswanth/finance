@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover - exercised only when dependency is miss
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = Path(os.getenv("FIN_REVIEW_DATA_DIR", str(BASE_DIR / "data"))).resolve()
+DATA_DIR = BASE_DIR / "data"
 USERS_DIR = DATA_DIR / "users"
 TEMPLATES_DIR = BASE_DIR / "templates"
 MAX_UPLOAD_BYTES = 35 * 1024 * 1024
@@ -1643,74 +1643,6 @@ def transaction_signature(tx: dict[str, Any]) -> str:
 
 def transaction_dedupe_key(tx: dict[str, Any]) -> tuple[Any, ...]:
     return (tx.get("date"), str(tx.get("description", "")).lower(), tx.get("amount"), tx.get("statement"))
-
-
-def normalized_duplicate_merchant(description: str) -> str:
-    value = str(description or "").lower()
-    value = re.sub(r"plaid transaction_id=[\w-]+", " ", value)
-    value = re.sub(r"\b(?:debit|credit|card|purchase|pos|ach|online|payment|pending|posted|checkcard|visa|mastercard|transaction|withdrawal|deposit)\b", " ", value)
-    value = re.sub(r"[^a-z0-9& ]+", " ", value)
-    value = re.sub(r"\b\d{2,}\b", " ", value)
-    value = re.sub(r"\s+", " ", value).strip()
-    return value[:40]
-
-
-def parse_tx_date(value: str) -> date | None:
-    try:
-        return datetime.strptime(str(value or ""), "%Y-%m-%d").date()
-    except ValueError:
-        return None
-
-
-def duplicate_match_score(left: dict[str, Any], right: dict[str, Any]) -> bool:
-    if left.get("statement") == "Manual Entry" or right.get("statement") == "Manual Entry":
-        return False
-    left_is_plaid = left.get("statement") == PLAID_SOURCE
-    right_is_plaid = right.get("statement") == PLAID_SOURCE
-    if left_is_plaid == right_is_plaid:
-        return False
-    try:
-        if round(float(left.get("amount", 0.0)), 2) != round(float(right.get("amount", 0.0)), 2):
-            return False
-    except (TypeError, ValueError):
-        return False
-    left_date = parse_tx_date(left.get("date", ""))
-    right_date = parse_tx_date(right.get("date", ""))
-    if not left_date or not right_date or abs((left_date - right_date).days) > 3:
-        return False
-    left_merchant = normalized_duplicate_merchant(left.get("description", ""))
-    right_merchant = normalized_duplicate_merchant(right.get("description", ""))
-    if not left_merchant or not right_merchant:
-        return False
-    return left_merchant in right_merchant or right_merchant in left_merchant or left_merchant[:10] == right_merchant[:10]
-
-
-def dedupe_bank_statement_and_plaid_transactions(transactions: list[dict[str, Any]]) -> dict[str, Any]:
-    """Hide cross-source duplicates from reporting without deleting stored rows.
-
-    If the same real-world transaction is present from both a PDF/bank statement
-    import and Plaid, Plaid is preferred because it has a stable provider ID and
-    sync updates. Manual entries are never auto-deduped.
-    """
-    kept: list[dict[str, Any]] = []
-    duplicate_rows: list[dict[str, Any]] = []
-    ordered = sorted(
-        transactions,
-        key=lambda tx: (0 if tx.get("statement") == PLAID_SOURCE else 1, tx.get("date", ""), tx.get("description", "")),
-    )
-    for tx in ordered:
-        match = next((existing for existing in kept if duplicate_match_score(existing, tx)), None)
-        if match:
-            duplicate = dict(tx)
-            duplicate["duplicate_of"] = match.get("id")
-            duplicate_rows.append(duplicate)
-            continue
-        kept.append(tx)
-    return {
-        "transactions": sorted(kept, key=lambda item: (item.get("date", ""), item.get("statement", ""), item.get("description", ""))),
-        "duplicate_count": len(duplicate_rows),
-        "duplicates": duplicate_rows,
-    }
 
 
 def load_category_overrides(user_id: str) -> dict[str, str]:
@@ -3838,9 +3770,7 @@ class Handler(BaseHTTPRequestHandler):
         if meta is None:
             self.send_error(HTTPStatus.NOT_FOUND, "Unknown user")
             return
-        raw_transactions = load_transactions(user_id)
-        dedupe = dedupe_bank_statement_and_plaid_transactions(raw_transactions)
-        all_transactions = dedupe["transactions"]
+        all_transactions = load_transactions(user_id)
         txs = filtered_transactions(all_transactions, params)
         categories = sorted({tx.get("category", "Uncategorized") for tx in all_transactions})
         account_types = sorted({tx.get("account_type", "unknown") for tx in all_transactions})
@@ -3854,8 +3784,7 @@ class Handler(BaseHTTPRequestHandler):
             "account_types": account_types,
             "merchant_rules": load_merchant_rules(user_id),
             "plaid": {"configured": plaid_configured(), "environment": os.getenv("PLAID_ENV", "sandbox"), "items": list_plaid_items(user_id)},
-            "manual_transactions": [tx for tx in raw_transactions if tx.get("statement") == "Manual Entry"],
-            "dedupe": {"hidden_duplicate_count": dedupe["duplicate_count"], "raw_transaction_count": len(raw_transactions)},
+            "manual_transactions": [tx for tx in all_transactions if tx.get("statement") == "Manual Entry"],
             "transactions": txs,
             "summary": summarize(txs, meta.get("name", user_id)),
         }

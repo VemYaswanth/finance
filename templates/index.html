@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Financial Review App</title>
+  <link rel="stylesheet" href="../static/styles.css?v=premium-ui-2">
+</head>
+<body>
+  <main class="app">
+    <section id="login-screen" class="login-screen">
+      <div class="login-copy">
+        <div class="brand-pill">Financial Review</div>
+        <h1>Understand every statement in one private workspace.</h1>
+        <p>Enter a username and password to create or reopen a local profile. Each profile maps to its own statement folder and financial history.</p>
+      </div>
+      <form id="login-form" class="login-panel">
+        <label for="username">Username</label>
+        <input id="username" name="name" placeholder="for example, Sophia" autocomplete="username" required>
+        <label for="password">Password</label>
+        <div class="login-row">
+          <input id="password" name="password" type="password" placeholder="Set or enter password" autocomplete="current-password" required>
+          <button type="submit">Enter</button>
+        </div>
+        <label class="remember-row"><input id="remember-login" type="checkbox" checked> <span>Keep me logged in on this device</span></label>
+        <small id="login-status">New usernames save this password on first login. Existing usernames must match their saved password.</small>
+      </form>
+    </section>
+
+    <section id="workspace" class="workspace hidden">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">Current user</div>
+          <button id="open-user-modal" class="user-title" type="button">
+            <span id="title">Financial workspace</span>
+          </button>
+          <p id="subtitle">Statements are read from the mapped local folder for this user.</p>
+        </div>
+        <div class="actions">
+          <button id="theme-toggle" class="ghost" type="button" aria-label="Switch theme">Dark Mode</button>
+          <button id="open-manual-entry" type="button">Manual Entry</button>
+          <button id="open-graph-settings" class="ghost" type="button">Graphs</button>
+          <button id="refresh-statements" class="secondary" type="button">Refresh PDFs</button>
+        </div>
+      </header>
+
+      <section id="filters" class="filters">
+        <input id="query" placeholder="Search description">
+        <select id="category"></select>
+        <select id="account_type"></select>
+        <input id="start" type="date">
+        <input id="end" type="date">
+        <button id="clear-filters" class="secondary" type="button">Clear</button>
+      </section>
+
+      <section class="category-tools">
+        <div>
+          <h2>Merchant Rules</h2>
+          <small id="category-status">Change one transaction or create merchant rules for future matches.</small>
+        </div>
+        <form id="merchant-rule-form">
+          <input id="merchant-pattern" name="pattern" placeholder="Merchant text, e.g. DUNKIN">
+          <input id="merchant-category" name="category" placeholder="Category">
+          <button type="submit" class="secondary">Apply Merchant Rule</button>
+        </form>
+      </section>
+
+      <section class="plaid-tools">
+        <div>
+          <h2>Plaid Sync</h2>
+          <small id="plaid-status">Connect a bank account or sync linked Plaid items.</small>
+        </div>
+        <div class="plaid-actions">
+          <button id="connect-plaid" class="secondary" type="button">Connect Bank</button>
+          <button id="sync-plaid" class="secondary" type="button">Sync Plaid</button>
+        </div>
+        <div id="plaid-items" class="plaid-items"></div>
+      </section>
+
+      <section id="dashboard">
+        <section class="command-center-hero" aria-label="Financial command center">
+          <div class="command-copy">
+            <div class="brand-pill mini">Financial Command Center</div>
+            <h2>Your money, summarized into actions.</h2>
+            <p id="command-center-brief">Load your statements to see cash flow, alerts, budget health, and smart next steps.</p>
+          </div>
+          <div class="command-health-card">
+            <span>Money Health</span>
+            <strong id="money-health-score">--</strong>
+            <small id="money-health-label">Waiting for data</small>
+          </div>
+        </section>
+
+        <div class="metrics">
+          <div><span>Income</span><strong id="income">$0</strong></div>
+          <div><span>Expenses</span><strong id="expenses">$0</strong></div>
+          <div><span>Savings</span><strong id="savings">$0</strong></div>
+          <div><span>Savings Rate</span><strong id="savings-rate">0%</strong></div>
+        </div>
+
+        <section class="insight-grid">
+          <article class="insight-card primary">
+            <span>Suggested Focus</span>
+            <strong id="focus-title">Review spending</strong>
+            <p id="focus-text">Your next action will appear after the dashboard loads.</p>
+          </article>
+          <article class="insight-card">
+            <span>Top Category</span>
+            <strong id="top-category">--</strong>
+            <p id="top-category-detail">No expense category detected yet.</p>
+          </article>
+          <article class="insight-card">
+            <span>Top Merchant</span>
+            <strong id="top-merchant">--</strong>
+            <p id="top-merchant-detail">No merchant spending detected yet.</p>
+          </article>
+          <article class="insight-card">
+            <span>Activity</span>
+            <strong id="transaction-count">0</strong>
+            <p id="activity-detail">Transactions in current view.</p>
+          </article>
+        </section>
+
+        <section class="budget-watch-panel">
+          <div class="panel-heading-row">
+            <div>
+              <h2>Budget Watch</h2>
+              <small>Auto-generated from your current filtered transactions.</small>
+            </div>
+          </div>
+          <div id="budget-watch-list" class="budget-watch-list"></div>
+        </section>
+
+        <section class="quick-action-panel">
+          <div>
+            <h2>Quick Actions</h2>
+            <small>Fast paths for common money tasks.</small>
+          </div>
+          <div class="quick-action-grid">
+            <button id="quick-this-month" class="ghost" type="button">This Month</button>
+            <button id="quick-large-expenses" class="ghost" type="button">Large Expenses</button>
+            <button id="quick-subscriptions" class="ghost" type="button">Subscriptions</button>
+            <button id="quick-reset-view" class="secondary" type="button">Reset View</button>
+          </div>
+        </section>
+
+        <section class="summary">
+          <div>
+            <h2>AI Financial Summary</h2>
+            <small id="ai-state"></small>
+          </div>
+          <p id="summary-text"></p>
+        </section>
+        <section id="visual-grid" class="visual-grid graph-count-0">
+          <div id="savings-panel" data-chart-panel="savings">
+            <div class="chart-heading">
+              <h2>Savings Trend</h2>
+            </div>
+            <div id="savings-chart" class="chart"></div>
+          </div>
+          <div id="income-panel" data-chart-panel="income">
+            <div class="chart-heading">
+              <h2>Income Trend</h2>
+            </div>
+            <div id="income-chart" class="chart"></div>
+          </div>
+          <div id="expenses-panel" data-chart-panel="expenses">
+            <div class="chart-heading">
+              <h2>Expenses Trend</h2>
+            </div>
+            <div id="expenses-chart" class="chart"></div>
+          </div>
+          <div id="category-panel" data-chart-panel="category">
+            <div class="chart-heading">
+              <h2>Category Mix</h2>
+            </div>
+            <div id="category-chart" class="chart"></div>
+          </div>
+          <div id="account-panel" data-chart-panel="account">
+            <div class="chart-heading">
+              <h2>Account Detail</h2>
+            </div>
+            <div id="account-chart" class="chart"></div>
+          </div>
+          <div id="merchant-panel" data-chart-panel="merchant">
+            <div class="chart-heading">
+              <h2>Top Merchants</h2>
+            </div>
+            <div id="merchant-chart" class="chart"></div>
+          </div>
+        </section>
+        <section class="transactions-panel">
+          <h2>Transactions</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Account</th><th>Description</th><th>Category</th><th>Amount</th><th>Statement</th><th>Rule</th></tr></thead>
+              <tbody id="transactions"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </section>
+
+    <section id="admin-workspace" class="admin-workspace hidden">
+      <header class="admin-hero">
+        <div>
+          <div class="brand-pill">Admin Console</div>
+          <h1>User access control</h1>
+          <p>Monitor local profiles, add users, remove users, and reset individual passwords.</p>
+        </div>
+        <button id="admin-refresh-users" class="secondary" type="button">Refresh Users</button>
+      </header>
+
+      <section class="admin-overview">
+        <div>
+          <span>Total users</span>
+          <strong id="admin-total-users">0</strong>
+        </div>
+        <div>
+          <span>Statements</span>
+          <strong id="admin-total-statements">0</strong>
+        </div>
+        <div>
+          <span>Transactions</span>
+          <strong id="admin-total-transactions">0</strong>
+        </div>
+      </section>
+
+      <section class="admin-management">
+        <div class="admin-heading">
+          <div>
+            <h2>Manage Users</h2>
+            <small id="admin-status">Create users, remove profiles, or reset an individual password.</small>
+          </div>
+        </div>
+        <form id="admin-create-user-form" class="admin-create-user-form">
+          <input name="name" placeholder="New username" autocomplete="off" required>
+          <input name="password" type="password" placeholder="Initial password" autocomplete="new-password" required>
+          <button type="submit" class="secondary">Add User</button>
+        </form>
+        <div id="admin-user-list" class="admin-user-list"></div>
+      </section>
+    </section>
+  </main>
+  <section id="graph-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="graph-modal-title">
+      <div class="modal-header">
+        <div>
+          <h2 id="graph-modal-title">Graph Visibility</h2>
+          <small>Choose which graph positions appear and how each one is drawn.</small>
+        </div>
+        <button id="close-graph-settings" class="ghost icon-button" type="button" aria-label="Close graph settings">X</button>
+      </div>
+      <div class="mock-layout" aria-hidden="true">
+        <div data-mock-chart="savings">Variable 1</div>
+        <div data-mock-chart="income">Variable 2</div>
+        <div data-mock-chart="expenses">Variable 3</div>
+        <div data-mock-chart="category">Variable 4</div>
+        <div data-mock-chart="account">Variable 5</div>
+        <div data-mock-chart="merchant">Variable 6</div>
+      </div>
+      <form id="graph-settings-form" class="graph-settings-form">
+        <label class="graph-option">
+          <input id="savings-visible" type="checkbox" data-chart-visible="savings">
+          <span>Variable 1</span>
+          <strong>Savings Trend</strong>
+          <select id="savings-chart-period" class="chart-type">
+            <option value="month">Monthly</option>
+            <option value="week">Weekly</option>
+            <option value="quarter">Quarterly</option>
+            <option value="year">Yearly</option>
+          </select>
+          <select id="savings-chart-type" class="chart-type">
+            <option value="line">Line</option>
+            <option value="bar">Bar</option>
+          </select>
+        </label>
+        <label class="graph-option">
+          <input id="income-visible" type="checkbox" data-chart-visible="income">
+          <span>Variable 2</span>
+          <strong>Income Trend</strong>
+          <select id="income-chart-period" class="chart-type">
+            <option value="month">Monthly</option>
+            <option value="week">Weekly</option>
+            <option value="quarter">Quarterly</option>
+            <option value="year">Yearly</option>
+          </select>
+          <select id="income-chart-type" class="chart-type">
+            <option value="line">Line</option>
+            <option value="bar">Bar</option>
+          </select>
+        </label>
+        <label class="graph-option">
+          <input id="expenses-visible" type="checkbox" data-chart-visible="expenses">
+          <span>Variable 3</span>
+          <strong>Expenses Trend</strong>
+          <select id="expenses-chart-period" class="chart-type">
+            <option value="month">Monthly</option>
+            <option value="week">Weekly</option>
+            <option value="quarter">Quarterly</option>
+            <option value="year">Yearly</option>
+          </select>
+          <select id="expenses-chart-type" class="chart-type">
+            <option value="line">Line</option>
+            <option value="bar">Bar</option>
+          </select>
+        </label>
+        <label class="graph-option">
+          <input id="category-visible" type="checkbox" data-chart-visible="category">
+          <span>Variable 4</span>
+          <strong>Category Mix</strong>
+          <select id="category-chart-period" class="chart-type">
+            <option value="all">All time</option>
+            <option value="year">This year</option>
+            <option value="quarter">This quarter</option>
+            <option value="month">This month</option>
+          </select>
+          <select id="category-chart-type" class="chart-type">
+            <option value="pie">Pie</option>
+            <option value="bar">Bar</option>
+          </select>
+        </label>
+        <label class="graph-option">
+          <input id="account-visible" type="checkbox" data-chart-visible="account">
+          <span>Variable 5</span>
+          <strong>Account Detail</strong>
+          <select id="account-chart-period" class="chart-type">
+            <option value="all">All time</option>
+            <option value="year">This year</option>
+            <option value="quarter">This quarter</option>
+            <option value="month">This month</option>
+          </select>
+          <select id="account-chart-type" class="chart-type">
+            <option value="bar">Bar</option>
+            <option value="pie">Pie</option>
+          </select>
+        </label>
+        <label class="graph-option">
+          <input id="merchant-visible" type="checkbox" data-chart-visible="merchant">
+          <span>Variable 6</span>
+          <strong>Top Merchants</strong>
+          <select id="merchant-chart-period" class="chart-type">
+            <option value="all">All time</option>
+            <option value="year">This year</option>
+            <option value="quarter">This quarter</option>
+            <option value="month">This month</option>
+          </select>
+          <select id="merchant-chart-type" class="chart-type">
+            <option value="bar">Bar</option>
+            <option value="pie">Pie</option>
+          </select>
+        </label>
+        <button type="submit">Select</button>
+      </form>
+    </div>
+  </section>
+  <section id="manual-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel manual-panel" role="dialog" aria-modal="true" aria-labelledby="manual-modal-title">
+      <div class="modal-header">
+        <div>
+          <h2 id="manual-modal-title">Manual Transaction</h2>
+          <small>Add cash or off-statement activity directly to the local database.</small>
+        </div>
+        <button id="close-manual-entry" class="ghost icon-button" type="button" aria-label="Close manual entry">X</button>
+      </div>
+      <div class="tab-row">
+        <button id="manual-transaction-tab" class="tab-button active" type="button" data-manual-tab="transaction">Transaction</button>
+        <button id="manual-adjustment-tab" class="tab-button" type="button" data-manual-tab="adjustment">Current Amount</button>
+        <button id="manual-remove-tab" class="tab-button" type="button" data-manual-tab="remove">Remove</button>
+      </div>
+      <form id="manual-entry-form" class="manual-entry-form">
+        <label>
+          <span>Date</span>
+          <input id="manual-date" name="date" type="date" required>
+        </label>
+        <label>
+          <span>Account</span>
+          <input id="manual-account" name="account" placeholder="Cash wallet" required>
+        </label>
+        <label>
+          <span>Description</span>
+          <input id="manual-description" name="description" placeholder="Farmers market" required>
+        </label>
+        <label>
+          <span>Category</span>
+          <input id="manual-category" name="category" list="manual-category-options" placeholder="Groceries" required>
+          <datalist id="manual-category-options"></datalist>
+        </label>
+        <label>
+          <span>Amount</span>
+          <input id="manual-amount" name="amount" inputmode="decimal" placeholder="-25.00" required>
+        </label>
+        <small id="manual-entry-status">Use negative amounts for spending and positive amounts for income.</small>
+        <button type="submit">Save Transaction</button>
+      </form>
+      <form id="savings-adjustment-form" class="manual-entry-form hidden">
+        <label>
+          <span>Date</span>
+          <input id="adjustment-date" name="date" type="date" required>
+        </label>
+        <label>
+          <span>Account</span>
+          <input id="adjustment-account" name="account" placeholder="Cash and bank balance" required>
+        </label>
+        <label>
+          <span>Current Amount Held</span>
+          <input id="adjustment-current-amount" name="current_amount" inputmode="decimal" placeholder="2500.00" required>
+        </label>
+        <small id="adjustment-status">This creates an adjustment transaction so Savings matches the amount you enter.</small>
+        <button type="submit">Save Adjustment</button>
+      </form>
+      <section id="manual-remove-section" class="manual-remove-section hidden">
+        <small id="manual-remove-status">Remove cash entries or current-holding adjustments that were added manually.</small>
+        <div id="manual-transaction-list" class="manual-transaction-list"></div>
+      </section>
+    </div>
+  </section>
+  <section id="user-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel user-panel" role="dialog" aria-modal="true" aria-labelledby="user-modal-title">
+      <div class="modal-header">
+        <div>
+          <h2 id="user-modal-title">User Details</h2>
+          <small>Profile, storage, statements, and global category cleanup.</small>
+        </div>
+        <button id="close-user-modal" class="ghost icon-button" type="button" aria-label="Close user details">X</button>
+      </div>
+      <div class="user-detail-grid">
+        <div>
+          <span>User name</span>
+          <strong id="user-detail-name">-</strong>
+        </div>
+        <div>
+          <span>Transactions</span>
+          <strong id="user-detail-transactions">0</strong>
+        </div>
+        <div>
+          <span>Statement summary</span>
+          <strong id="user-detail-statement-summary">0 PDF statement(s), 0 matching transaction(s)</strong>
+        </div>
+        <div>
+          <span>Bank names</span>
+          <strong id="user-detail-banks">No banks detected yet</strong>
+        </div>
+        <div>
+          <span>Mapped statement folder</span>
+          <strong id="folder-path">data/users/.../statements</strong>
+        </div>
+        <div>
+          <span>Database cache</span>
+          <strong id="cache-status">Stored transaction database ready</strong>
+        </div>
+      </div>
+      <form id="rename-category-form" class="user-rename-form">
+        <select id="rename-from" name="old_category"></select>
+        <input id="rename-to" name="new_category" placeholder="New category name">
+        <button type="submit" class="secondary">Rename Category</button>
+      </form>
+    </div>
+  </section>
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  <script src="../static/app.js?v=plaid-sync-1"></script>
+</body>
+</html>
